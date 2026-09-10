@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI To-Do List App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .task-card {
+            transition: all 0.3s ease;
+        }
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .priority-1 { border-left: 4px solid #10b981; }
+        .priority-2 { border-left: 4px solid #3b82f6; }
+        .priority-3 { border-left: 4px solid #f59e0b; }
+        .priority-4 { border-left: 4px solid #ef4444; }
+        .priority-5 { border-left: 4px solid #991b1b; }
+        .permission-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .perm-r { background-color: #dbeafe; color: #1e40af; }
+        .perm-w { background-color: #dbeafe; color: #1e40af; }
+        .perm-rw { background-color: #ccfbf1; color: #065f46; }
+        .perm-rwx { background-color: #c7d2fe; color: #312e81; }
+        .ai-suggestion {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg">
+            <div class="max-w-6xl mx-auto px-6 py-8">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-4xl font-bold">🤖 AI To-Do List</h1>
+                        <p class="text-blue-100 mt-2">Smart task management with AI suggestions and local storage</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm text-blue-100">File Permissions</div>
+                        <div id="permissionBadge" class="permission-badge perm-rwx mt-2">rwx</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="max-w-6xl mx-auto px-6 py-8">
+            <!-- Add Task Section -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">✨ Add New Task</h2>
+                <form id="taskForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Task Title *</label>
+                            <input type="text" id="taskTitle" placeholder="What needs to be done?" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Priority (1-5)</label>
+                            <select id="taskPriority" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="1">1 - Low</option>
+                                <option value="2">2 - Below Average</option>
+                                <option value="3" selected>3 - Medium</option>
+                                <option value="4">4 - High</option>
+                                <option value="5">5 - Urgent</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <textarea id="taskDescription" placeholder="Add more details..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" rows="3"></textarea>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                            <input type="date" id="taskDueDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated)</label>
+                            <input type="text" id="taskTags" placeholder="e.g., work, urgent, personal" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                        <i class="fas fa-plus mr-2"></i>Add Task
+                    </button>
+                </form>
+            </div>
+
+            <!-- Statistics Section -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-3xl font-bold text-blue-600" id="totalTasks">0</div>
+                    <div class="text-gray-600 text-sm mt-1">Total Tasks</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-3xl font-bold text-green-600" id="completedTasks">0</div>
+                    <div class="text-gray-600 text-sm mt-1">Completed</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-3xl font-bold text-yellow-600" id="pendingTasks">0</div>
+                    <div class="text-gray-600 text-sm mt-1">Pending</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-3xl font-bold text-red-600" id="completionRate">0%</div>
+                    <div class="text-gray-600 text-sm mt-1">Completion Rate</div>
+                </div>
+            </div>
+
+            <!-- Filters and View Options -->
+            <div class="bg-white rounded-lg shadow-md p-4 mb-6 flex flex-wrap gap-3 items-center">
+                <button class="filter-btn bg-blue-600 text-white px-4 py-2 rounded-lg font-medium" data-filter="all">
+                    <i class="fas fa-list mr-2"></i>All Tasks
+                </button>
+                <button class="filter-btn px-4 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-50" data-filter="pending">
+                    <i class="fas fa-hourglass mr-2"></i>Pending
+                </button>
+                <button class="filter-btn px-4 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-50" data-filter="completed">
+                    <i class="fas fa-check mr-2"></i>Completed
+                </button>
+                <button class="filter-btn px-4 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-50" data-filter="high-priority">
+                    <i class="fas fa-fire mr-2"></i>High Priority
+                </button>
+                <div class="ml-auto">
+                    <input type="text" id="searchInput" placeholder="Search tasks..." class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <!-- AI Insights Section -->
+            <div id="aiInsights" class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg shadow-md p-6 mb-8 border-l-4 border-purple-600 hidden">
+                <h2 class="text-xl font-bold text-purple-900 mb-4">🎯 AI Insights & Recommendations</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="font-semibold text-purple-800 mb-3">Productivity Metrics</h3>
+                        <div id="aiMetrics" class="space-y-2 text-sm text-gray-700">
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-purple-800 mb-3">Top Recommendations</h3>
+                        <div id="aiRecommendations" class="space-y-2">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks List -->
+            <div class="space-y-4">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">📋 Tasks</h2>
+                <div id="tasksList" class="space-y-3">
+                    <div class="text-center py-12 text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-4"></i>
+                        <p>No tasks yet. Create one to get started!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Template (hidden) -->
+    <template id="taskTemplate">
+        <div class="task-card bg-white rounded-lg shadow p-6 border-l-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <input type="checkbox" class="task-checkbox w-5 h-5 cursor-pointer" style="width: 20px; height: 20px;">
+                        <h3 class="task-title text-xl font-bold text-gray-800"></h3>
+                        <span class="task-priority text-xs font-bold px-3 py-1 rounded-full text-white"></span>
+                    </div>
+                    <p class="task-description text-gray-600 ml-8 mb-3"></p>
+                    <div class="ml-8 space-y-2">
+                        <div id="taskTags" class="flex flex-wrap gap-2"></div>
+                        <div class="task-suggestions" style="display: none;"></div>
+                    </div>
+                </div>
+                <div class="flex gap-2 ml-4">
+                    <button class="task-delete text-red-500 hover:text-red-700 px-3 py-2 rounded hover:bg-red-50 transition" title="Delete task">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="text-xs text-gray-400 mt-3 ml-8">Created: <span class="task-created"></span></div>
+        </div>
+    </template>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let tasks = [];
+        let currentFilter = 'all';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTasks();
+            setupEventListeners();
+            updateStats();
+            updateAIInsights();
+        });
+
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('taskForm').addEventListener('submit', handleAddTask);
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.classList.remove('bg-blue-600', 'text-white');
+                        b.classList.add('border', 'border-gray-300', 'hover:bg-gray-50');
+                    });
+                    e.target.classList.add('bg-blue-600', 'text-white');
+                    e.target.classList.remove('border', 'border-gray-300', 'hover:bg-gray-50');
+                    currentFilter = e.target.dataset.filter;
+                    renderTasks();
+                });
+            });
+            document.getElementById('searchInput').addEventListener('input', renderTasks);
+        }
+
+        // Load tasks from localStorage
+        function loadTasks() {
+            const stored = localStorage.getItem('todos');
+            tasks = stored ? JSON.parse(stored) : [];
+            renderTasks();
+        }
+
+        // Save tasks to localStorage
+        function saveTasks() {
+            localStorage.setItem('todos', JSON.stringify(tasks));
+            updateStats();
+            updateAIInsights();
+        }
+
+        // Handle add task
+        async function handleAddTask(e) {
+            e.preventDefault();
+            const title = document.getElementById('taskTitle').value;
+            const description = document.getElementById('taskDescription').value;
+            const priority = parseInt(document.getElementById('taskPriority').value);
+            const dueDate = document.getElementById('taskDueDate').value || null;
+            const tags = document.getElementById('taskTags').value.split(',').map(t => t.trim()).filter(t => t);
+
+            const task = {
+                id: Date.now().toString(),
+                title,
+                description,
+                priority,
+                due_date: dueDate,
+                tags,
+                completed: false,
+                created_at: new Date().toISOString(),
+                ai_suggestions: generateAISuggestions(title, description, priority)
+            };
+
+            tasks.push(task);
+            saveTasks();
+            renderTasks();
+            document.getElementById('taskForm').reset();
+        }
+
+        // Generate AI suggestions
+        function generateAISuggestions(title, description, priority) {
+            const suggestions = [];
+            const titleLower = title.toLowerCase();
+
+            if (priority >= 4) {
+                suggestions.push('Break into immediate actions');
+                suggestions.push('Identify critical path');
+            }
+            if (description.length < 20) {
+                suggestions.push('Add more details to task description');
+            }
+            if (titleLower.includes('work') || titleLower.includes('project')) {
+                suggestions.push('Set a specific deadline');
+                suggestions.push('Break into smaller subtasks');
+            }
+            if (titleLower.includes('health') || titleLower.includes('exercise')) {
+                suggestions.push('Set regular reminders');
+                suggestions.push('Track progress over time');
+            }
+            return suggestions.slice(0, 3);
+        }
+
+        // Render tasks
+        function renderTasks() {
+            const list = document.getElementById('tasksList');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filtered = tasks;
+
+            // Apply filter
+            if (currentFilter === 'pending') {
+                filtered = tasks.filter(t => !t.completed);
+            } else if (currentFilter === 'completed') {
+                filtered = tasks.filter(t => t.completed);
+            } else if (currentFilter === 'high-priority') {
+                filtered = tasks.filter(t => t.priority >= 3 && !t.completed);
+            }
+
+            // Apply search
+            if (search) {
+                filtered = filtered.filter(t => 
+                    t.title.toLowerCase().includes(search) || 
+                    t.description.toLowerCase().includes(search)
+                );
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-12 text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-4"></i>
+                        <p>${currentFilter === 'all' && search ? 'No tasks found.' : 'No tasks in this category.'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort by priority
+            filtered.sort((a, b) => b.priority - a.priority);
+
+            list.innerHTML = filtered.map(task => {
+                const template = document.getElementById('taskTemplate').content.cloneNode(true);
+                const card = template.querySelector('.task-card');
+                
+                const priorityColors = ['', '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#991b1b'];
+                const priorityLabels = ['', 'Low', 'Below Avg', 'Medium', 'High', 'Urgent'];
+                
+                card.classList.add(`priority-${task.priority}`);
+                template.querySelector('.task-checkbox').checked = task.completed;
+                template.querySelector('.task-checkbox').addEventListener('change', () => toggleTask(task.id));
+                template.querySelector('.task-title').textContent = task.title;
+                template.querySelector('.task-title').style.textDecoration = task.completed ? 'line-through' : 'none';
+                template.querySelector('.task-title').style.color = task.completed ? '#999' : '#000';
+                
+                const priority = template.querySelector('.task-priority');
+                priority.textContent = priorityLabels[task.priority];
+                priority.style.backgroundColor = priorityColors[task.priority];
+                
+                template.querySelector('.task-description').textContent = task.description;
+                if (task.completed) template.querySelector('.task-description').style.color = '#999';
+                
+                // Add tags
+                const tagsContainer = template.querySelector('#taskTags');
+                task.tags.forEach(tag => {
+                    const tagEl = document.createElement('span');
+                    tagEl.className = 'text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded';
+                    tagEl.textContent = tag;
+                    tagsContainer.appendChild(tagEl);
+                });
+
+                // Add AI suggestions
+                if (task.ai_suggestions && task.ai_suggestions.length > 0 && !task.completed) {
+                    const suggestionsDiv = template.querySelector('.task-suggestions');
+                    suggestionsDiv.style.display = 'block';
+                    task.ai_suggestions.forEach(suggestion => {
+                        const suggestionEl = document.createElement('div');
+                        suggestionEl.className = 'ai-suggestion';
+                        suggestionEl.innerHTML = `<i class="fas fa-lightbulb mr-2"></i>${suggestion}`;
+                        suggestionsDiv.appendChild(suggestionEl);
+                    });
+                }
+
+                template.querySelector('.task-created').textContent = new Date(task.created_at).toLocaleDateString();
+                template.querySelector('.task-delete').addEventListener('click', () => deleteTask(task.id));
+
+                return template;
+            }).reduce((fragment, element) => {
+                fragment.appendChild(element);
+                return fragment;
+            }, document.createDocumentFragment());
+        }
+
+        // Toggle task completion
+        function toggleTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks();
+                renderTasks();
+            }
+        }
+
+        // Delete task
+        function deleteTask(id) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                tasks = tasks.filter(t => t.id !== id);
+                saveTasks();
+                renderTasks();
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const pending = total - completed;
+            const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('totalTasks').textContent = total;
+            document.getElementById('completedTasks').textContent = completed;
+            document.getElementById('pendingTasks').textContent = pending;
+            document.getElementById('completionRate').textContent = rate + '%';
+        }
+
+        // Update AI insights
+        function updateAIInsights() {
+            if (tasks.length === 0) {
+                document.getElementById('aiInsights').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('aiInsights').classList.remove('hidden');
+
+            const highPriority = tasks.filter(t => t.priority >= 3 && !t.completed).length;
+            const suggestions = new Set();
+            tasks.forEach(t => {
+                if (t.ai_suggestions) t.ai_suggestions.forEach(s => suggestions.add(s));
+            });
+
+            const metricsHtml = `
+                <div><strong>High Priority:</strong> ${highPriority} tasks</div>
+                <div><strong>Completion Rate:</strong> ${Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100)}%</div>
+                <div><strong>Total Suggestions:</strong> ${suggestions.size}</div>
+            `;
+
+            const suggestionsHtml = Array.from(suggestions).slice(0, 5).map(s => 
+                `<div class="ai-suggestion"><i class="fas fa-lightbulb mr-2"></i>${s}</div>`
+            ).join('');
+
+            document.getElementById('aiMetrics').innerHTML = metricsHtml;
+            document.getElementById('aiRecommendations').innerHTML = suggestionsHtml;
+        }
+    </script>
+</body>
+</html>
