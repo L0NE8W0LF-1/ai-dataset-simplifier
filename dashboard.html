@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Simplifier - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .quality-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .badge-excellent { background-color: #2ecc71; color: white; }
+        .badge-good { background-color: #3498db; color: white; }
+        .badge-fair { background-color: #f39c12; color: white; }
+        .badge-poor { background-color: #e74c3c; color: white; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-6 py-8">
+                <h1 class="text-4xl font-bold">📊 Dataset Simplifier</h1>
+                <p class="text-blue-100 mt-2">AI-Powered Data Quality Assessment & Cleaning Dashboard</p>
+            </div>
+        </header>
+
+        <div class="max-w-7xl mx-auto px-6 py-8">
+            <!-- API Status -->
+            <div id="apiStatus" class="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-3"></div>
+                    <span class="text-green-700">API Connected (localhost:5000)</span>
+                </div>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">📁 Upload Dataset</h2>
+                <form id="uploadForm" class="flex flex-col gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Dataset Name</label>
+                            <input type="text" id="datasetName" placeholder="e.g., customer_data" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Select File (CSV/Excel)</label>
+                            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                    </div>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition">
+                        Upload Dataset
+                    </button>
+                </form>
+            </div>
+
+            <!-- Datasets List -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">📋 Datasets</h2>
+                <div id="datasetsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="text-center py-8 text-gray-500">No datasets uploaded yet</div>
+                </div>
+            </div>
+
+            <!-- Quality Score Section -->
+            <div id="qualitySection" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📈 Data Quality Analysis</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Quality Gauge Chart -->
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Quality Score</h3>
+                        <canvas id="qualityChart"></canvas>
+                    </div>
+
+                    <!-- Dimension Scores -->
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Score Breakdown</h3>
+                        <div id="dimensionScores" class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700">Completeness</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div id="completenessBar" class="bg-green-500 h-2 rounded-full" style="width: 0%"></div>
+                                    </div>
+                                    <span id="completenessScore" class="font-bold text-gray-800 w-12 text-right">0%</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700">Consistency</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div id="consistencyBar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                                    </div>
+                                    <span id="consistencyScore" class="font-bold text-gray-800 w-12 text-right">0%</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700">Uniqueness</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div id="uniquenessBar" class="bg-purple-500 h-2 rounded-full" style="width: 0%"></div>
+                                    </div>
+                                    <span id="uniquenessScore" class="font-bold text-gray-800 w-12 text-right">0%</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700">Validity</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div id="validityBar" class="bg-yellow-500 h-2 rounded-full" style="width: 0%"></div>
+                                    </div>
+                                    <span id="validityScore" class="font-bold text-gray-800 w-12 text-right">0%</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700">Correctness</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div id="correctnessBar" class="bg-red-500 h-2 rounded-full" style="width: 0%"></div>
+                                    </div>
+                                    <span id="correctnessScore" class="font-bold text-gray-800 w-12 text-right">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Issues Detected -->
+                <div class="bg-gray-50 p-6 rounded-lg mt-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">⚠️ Issues Detected</h3>
+                    <div id="issuesList" class="space-y-2">
+                        <p class="text-gray-500">No issues detected</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Section -->
+            <div id="previewSection" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">👁️ Data Preview</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-gray-600">
+                        <thead id="previewHead" class="bg-gray-100 border-b">
+                        </thead>
+                        <tbody id="previewBody" class="divide-y">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Statistics Section -->
+            <div id="statisticsSection" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 Statistics</h2>
+                <div id="statisticsContent" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                </div>
+            </div>
+
+            <!-- Actions Section -->
+            <div id="actionsSection" class="hidden bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">⚙️ Actions</h2>
+                <div class="flex flex-wrap gap-3">
+                    <button id="simplifyBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition">
+                        Simplify Dataset
+                    </button>
+                    <button id="downloadBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg transition">
+                        Download CSV
+                    </button>
+                    <button id="deleteBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition">
+                        Delete Dataset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+        let selectedDataset = null;
+        let qualityChart = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDatasets();
+            setupEventListeners();
+        });
+
+        // Setup event listeners
+        function setupEventListeners() {
+            document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+            document.getElementById('simplifyBtn').addEventListener('click', handleSimplify);
+            document.getElementById('downloadBtn').addEventListener('click', handleDownload);
+            document.getElementById('deleteBtn').addEventListener('click', handleDelete);
+        }
+
+        // Load datasets
+        async function loadDatasets() {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/datasets`);
+                displayDatasets(response.data.datasets);
+            } catch (error) {
+                console.error('Error loading datasets:', error);
+                updateApiStatus('Error connecting to API', false);
+            }
+        }
+
+        // Display datasets
+        function displayDatasets(datasets) {
+            const container = document.getElementById('datasetsList');
+            if (datasets.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500 col-span-3">No datasets uploaded yet</div>';
+                return;
+            }
+
+            container.innerHTML = datasets.map(ds => `
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200 cursor-pointer hover:shadow-lg transition" onclick="selectDataset('${ds.name}')">
+                    <h3 class="font-bold text-gray-800 mb-2 text-lg">${ds.name}</h3>
+                    <div class="text-sm text-gray-700 space-y-1">
+                        <p>📊 Rows: <span class="font-semibold">${ds.rows}</span></p>
+                        <p>📋 Columns: <span class="font-semibold">${ds.columns}</span></p>
+                        <p class="text-xs text-gray-600 mt-2">Columns: ${ds.column_names.slice(0, 2).join(', ')}${ds.column_names.length > 2 ? '...' : ''}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Select dataset
+        async function selectDataset(name) {
+            selectedDataset = name;
+            document.getElementById('qualitySection').classList.remove('hidden');
+            document.getElementById('previewSection').classList.remove('hidden');
+            document.getElementById('statisticsSection').classList.remove('hidden');
+            document.getElementById('actionsSection').classList.remove('hidden');
+
+            await loadQualityScore(name);
+            await loadPreview(name);
+            await loadStatistics(name);
+        }
+
+        // Load quality score
+        async function loadQualityScore(name) {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/score/${name}`);
+                const scores = response.data.scores;
+                const issues = response.data.issues;
+
+                // Update progress bars
+                updateProgressBar('completenessBar', 'completenessScore', scores.completeness);
+                updateProgressBar('consistencyBar', 'consistencyScore', scores.consistency);
+                updateProgressBar('uniquenessBar', 'uniquenessScore', scores.uniqueness);
+                updateProgressBar('validityBar', 'validityScore', scores.validity);
+                updateProgressBar('correctnessBar', 'correctnessScore', scores.correctness);
+
+                // Update overall score chart
+                updateQualityChart(scores.overall);
+
+                // Display issues
+                const issuesList = document.getElementById('issuesList');
+                if (issues.length === 0) {
+                    issuesList.innerHTML = '<p class="text-green-700 font-semibold">✅ No issues detected!</p>';
+                } else {
+                    issuesList.innerHTML = issues.map(issue => `
+                        <div class="bg-red-50 border-l-4 border-red-500 p-3 rounded">
+                            <p class="text-red-700">⚠️ ${issue}</p>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading quality score:', error);
+            }
+        }
+
+        // Update progress bar
+        function updateProgressBar(barId, scoreId, value) {
+            const bar = document.getElementById(barId);
+            const score = document.getElementById(scoreId);
+            bar.style.width = value + '%';
+            score.textContent = value.toFixed(1) + '%';
+        }
+
+        // Update quality chart
+        function updateQualityChart(overall) {
+            const ctx = document.getElementById('qualityChart').getContext('2d');
+            if (qualityChart) qualityChart.destroy();
+
+            qualityChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Quality Score', 'Potential Issues'],
+                    datasets: [{
+                        data: [overall, 100 - overall],
+                        backgroundColor: [
+                            overall >= 80 ? '#2ecc71' : overall >= 60 ? '#3498db' : overall >= 40 ? '#f39c12' : '#e74c3c',
+                            '#ecf0f1'
+                        ],
+                        borderColor: ['#fff', '#fff'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { callbacks: { label: (context) => context.label + ': ' + context.parsed + '%' } }
+                    }
+                }
+            });
+        }
+
+        // Load preview
+        async function loadPreview(name) {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/preview/${name}?rows=10`);
+                const columns = response.data.columns;
+                const data = response.data.data;
+
+                // Build table header
+                const head = document.getElementById('previewHead');
+                head.innerHTML = '<tr class="bg-gray-100 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">' +
+                    columns.map(col => `<th class="px-6 py-3">${col}</th>`).join('') +
+                    '</tr>';
+
+                // Build table body
+                const body = document.getElementById('previewBody');
+                body.innerHTML = data.map(row => {
+                    return '<tr class="hover:bg-gray-50">' +
+                        columns.map(col => `<td class="px-6 py-4 text-sm">${row[col] ?? 'N/A'}</td>`).join('') +
+                        '</tr>';
+                }).join('');
+            } catch (error) {
+                console.error('Error loading preview:', error);
+            }
+        }
+
+        // Load statistics
+        async function loadStatistics(name) {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/statistics/${name}`);
+                const columnInfo = response.data.column_info;
+                const container = document.getElementById('statisticsContent');
+
+                container.innerHTML = Object.entries(columnInfo).map(([col, info]) => `
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h4 class="font-bold text-gray-800 mb-3">${col}</h4>
+                        <div class="space-y-2 text-sm">
+                            <p><span class="text-gray-600">Type:</span> <span class="font-semibold">${info.dtype}</span></p>
+                            <p><span class="text-gray-600">Unique:</span> <span class="font-semibold">${info.unique_count}</span></p>
+                            <p><span class="text-gray-600">Duplicates:</span> <span class="font-semibold">${info.duplicates}</span></p>
+                            <p><span class="text-gray-600">Missing:</span> <span class="font-semibold">${info.null_count} (${info.null_percentage.toFixed(1)}%)</span></p>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        // Handle upload
+        async function handleUpload(e) {
+            e.preventDefault();
+            const name = document.getElementById('datasetName').value || 'dataset_' + Date.now();
+            const file = document.getElementById('fileInput').files[0];
+
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('name', name);
+
+            try {
+                await axios.post(`${API_BASE_URL}/upload`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                alert('Dataset uploaded successfully!');
+                document.getElementById('uploadForm').reset();
+                loadDatasets();
+            } catch (error) {
+                alert('Error uploading dataset: ' + error.response?.data?.error);
+            }
+        }
+
+        // Handle simplify
+        async function handleSimplify() {
+            if (!selectedDataset) return;
+            try {
+                const response = await axios.post(`${API_BASE_URL}/simplify/${selectedDataset}`, {
+                    remove_duplicates: true,
+                    handle_missing_values: true,
+                    standardize_names: true,
+                    clean_whitespace: true,
+                    remove_redundant: true
+                });
+                alert('Dataset simplified! New dataset: ' + response.data.cleaned_dataset_name);
+                loadDatasets();
+            } catch (error) {
+                alert('Error simplifying dataset: ' + error.response?.data?.error);
+            }
+        }
+
+        // Handle download
+        async function handleDownload() {
+            if (!selectedDataset) return;
+            window.location.href = `${API_BASE_URL}/download/${selectedDataset}`;
+        }
+
+        // Handle delete
+        async function handleDelete() {
+            if (!selectedDataset || !confirm('Delete this dataset?')) return;
+            try {
+                await axios.delete(`${API_BASE_URL}/delete/${selectedDataset}`);
+                alert('Dataset deleted!');
+                selectedDataset = null;
+                document.getElementById('qualitySection').classList.add('hidden');
+                document.getElementById('previewSection').classList.add('hidden');
+                document.getElementById('statisticsSection').classList.add('hidden');
+                document.getElementById('actionsSection').classList.add('hidden');
+                loadDatasets();
+            } catch (error) {
+                alert('Error deleting dataset: ' + error.response?.data?.error);
+            }
+        }
+
+        // Update API status
+        function updateApiStatus(message, isHealthy) {
+            const status = document.getElementById('apiStatus');
+            if (isHealthy) {
+                status.innerHTML = '<div class="flex items-center"><div class="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-3"></div><span class="text-green-700">API Connected (localhost:5000)</span></div>';
+                status.className = 'bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded';
+            } else {
+                status.innerHTML = '<div class="flex items-center"><div class="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-3"></div><span class="text-red-700">' + message + '</span></div>';
+                status.className = 'bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded';
+            }
+        }
+    </script>
+</body>
+</html>
